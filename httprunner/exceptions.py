@@ -6,7 +6,7 @@ from httprunner.compat import JSONDecodeError, FileNotFoundError
     these exceptions will mark test as failure
 """
 
-class MyBaseFailure(BaseException):
+class MyBaseFailure(Exception):
     pass
 
 class ValidationFailure(MyBaseFailure):
@@ -26,7 +26,7 @@ class TeardownHooksFailure(MyBaseFailure):
     these exceptions will mark test as error
 """
 
-class MyBaseError(BaseException):
+class MyBaseError(Exception):
     pass
 
 class FileFormatError(MyBaseError):
@@ -48,9 +48,6 @@ class VariableNotFound(NotFoundError):
     pass
 
 class ApiNotFound(NotFoundError):
-    pass
-
-class SuiteNotFound(NotFoundError):
     pass
 
 class TestcaseNotFound(NotFoundError):

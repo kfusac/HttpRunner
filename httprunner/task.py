@@ -4,12 +4,10 @@ import copy
 import sys
 import unittest
 
-from httprunner import exceptions, logger, runner, testcase, utils
+from httprunner import context, exceptions, loader, logger, runner, utils
 from httprunner.compat import is_py3
 from httprunner.report import (HtmlTestResult, get_platform, get_summary,
                                render_html_report)
-from httprunner.testcase import TestcaseLoader
-from httprunner.utils import load_dot_env_file, print_output
 
 
 class TestCase(unittest.TestCase):
@@ -80,7 +78,7 @@ class TestSuite(unittest.TestSuite):
             config_dict_variables,
             config_dict_parameters
         )
-        self.testcase_parser = testcase.TestcaseParser()
+        self.testcase_parser = context.TestcaseParser()
         testcases = testset.get("testcases", [])
 
         for config_variables in config_parametered_variables_list:
@@ -116,7 +114,7 @@ class TestSuite(unittest.TestSuite):
     def _get_parametered_variables(self, variables, parameters):
         """ parameterize varaibles with parameters
         """
-        cartesian_product_parameters = testcase.parse_parameters(
+        cartesian_product_parameters = context.parse_parameters(
             parameters,
             self.testset_file_path
         ) or [{}]
@@ -179,11 +177,7 @@ def init_test_suites(path_or_testsets, mapping=None, http_client_session=None):
         mapping (dict):
             passed in variables mapping, it will override variables in config block
     """
-    if not testcase.is_testsets(path_or_testsets):
-        TestcaseLoader.load_test_dependencies()
-        testsets = TestcaseLoader.load_testsets_by_path(path_or_testsets)
-    else:
-        testsets = path_or_testsets
+    testsets = loader.load(path_or_testsets)
 
     # TODO: move comparator uniform here
     mapping = mapping or {}
@@ -212,7 +206,7 @@ class HttpRunner(object):
             - dot_env_path: .env file path
         """
         dot_env_path = kwargs.pop("dot_env_path", None)
-        load_dot_env_file(dot_env_path)
+        utils.set_os_environ(loader.load_dot_env_file(dot_env_path))
 
         kwargs.setdefault("resultclass", HtmlTestResult)
         self.runner = unittest.TextTestRunner(**kwargs)
@@ -268,7 +262,7 @@ class HttpRunner(object):
             test_suite_summary["name"] = test_suite.config.get("name")
             test_suite_summary["base_url"] = test_suite.config.get("request", {}).get("base_url", "")
             test_suite_summary["output"] = test_suite.output
-            print_output(test_suite_summary["output"])
+            utils.print_output(test_suite_summary["output"])
 
             accumulate_stat(self.summary["stat"], test_suite_summary["stat"])
             accumulate_stat(self.summary["time"], test_suite_summary["time"])

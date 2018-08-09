@@ -1,139 +1,9 @@
 import os
 import shutil
-import unittest
 
-from httprunner import exceptions, utils
+from httprunner import exceptions, loader, utils
 from httprunner.compat import OrderedDict
-from httprunner.utils import FileUtils
 from tests.base import ApiServerUnittest
-
-
-class TestFileUtils(unittest.TestCase):
-
-    def test_load_yaml_file_file_format_error(self):
-        yaml_tmp_file = "tests/data/tmp.yml"
-        # create empty yaml file
-        with open(yaml_tmp_file, 'w') as f:
-            f.write("")
-
-        with self.assertRaises(exceptions.FileFormatError):
-            FileUtils._load_yaml_file(yaml_tmp_file)
-
-        os.remove(yaml_tmp_file)
-
-        # create invalid format yaml file
-        with open(yaml_tmp_file, 'w') as f:
-            f.write("abc")
-
-        with self.assertRaises(exceptions.FileFormatError):
-            FileUtils._load_yaml_file(yaml_tmp_file)
-
-        os.remove(yaml_tmp_file)
-
-
-    def test_load_json_file_file_format_error(self):
-        json_tmp_file = "tests/data/tmp.json"
-        # create empty file
-        with open(json_tmp_file, 'w') as f:
-            f.write("")
-
-        with self.assertRaises(exceptions.FileFormatError):
-            FileUtils._load_json_file(json_tmp_file)
-
-        os.remove(json_tmp_file)
-
-        # create empty json file
-        with open(json_tmp_file, 'w') as f:
-            f.write("{}")
-
-        with self.assertRaises(exceptions.FileFormatError):
-            FileUtils._load_json_file(json_tmp_file)
-
-        os.remove(json_tmp_file)
-
-        # create invalid format json file
-        with open(json_tmp_file, 'w') as f:
-            f.write("abc")
-
-        with self.assertRaises(exceptions.FileFormatError):
-            FileUtils._load_json_file(json_tmp_file)
-
-        os.remove(json_tmp_file)
-
-    def test_load_testcases_bad_filepath(self):
-        testcase_file_path = os.path.join(os.getcwd(), 'tests/data/demo')
-        with self.assertRaises(exceptions.FileNotFound):
-            FileUtils.load_file(testcase_file_path)
-
-    def test_load_json_testcases(self):
-        testcase_file_path = os.path.join(
-            os.getcwd(), 'tests/data/demo_testset_hardcode.json')
-        testcases = FileUtils.load_file(testcase_file_path)
-        self.assertEqual(len(testcases), 3)
-        test = testcases[0]["test"]
-        self.assertIn('name', test)
-        self.assertIn('request', test)
-        self.assertIn('url', test['request'])
-        self.assertIn('method', test['request'])
-
-    def test_load_yaml_testcases(self):
-        testcase_file_path = os.path.join(
-            os.getcwd(), 'tests/data/demo_testset_hardcode.yml')
-        testcases = FileUtils.load_file(testcase_file_path)
-        self.assertEqual(len(testcases), 3)
-        test = testcases[0]["test"]
-        self.assertIn('name', test)
-        self.assertIn('request', test)
-        self.assertIn('url', test['request'])
-        self.assertIn('method', test['request'])
-
-    def test_load_csv_file_one_parameter(self):
-        csv_file_path = os.path.join(
-            os.getcwd(), 'tests/data/user_agent.csv')
-        csv_content = FileUtils.load_file(csv_file_path)
-        self.assertEqual(
-            csv_content,
-            [
-                {'user_agent': 'iOS/10.1'},
-                {'user_agent': 'iOS/10.2'},
-                {'user_agent': 'iOS/10.3'}
-            ]
-        )
-
-    def test_load_csv_file_multiple_parameters(self):
-        csv_file_path = os.path.join(
-            os.getcwd(), 'tests/data/account.csv')
-        csv_content = FileUtils.load_file(csv_file_path)
-        self.assertEqual(
-            csv_content,
-            [
-                {'username': 'test1', 'password': '111111'},
-                {'username': 'test2', 'password': '222222'},
-                {'username': 'test3', 'password': '333333'}
-            ]
-        )
-
-    def test_load_folder_files(self):
-        folder = os.path.join(os.getcwd(), 'tests')
-        file1 = os.path.join(os.getcwd(), 'tests', 'test_utils.py')
-        file2 = os.path.join(os.getcwd(), 'tests', 'data', 'demo_binds.yml')
-
-        files = FileUtils.load_folder_files(folder, recursive=False)
-        self.assertNotIn(file2, files)
-
-        files = FileUtils.load_folder_files(folder)
-        self.assertIn(file2, files)
-        self.assertNotIn(file1, files)
-
-        files = FileUtils.load_folder_files(folder)
-        api_file = os.path.join(os.getcwd(), 'tests', 'api', 'basic.yml')
-        self.assertIn(api_file, files)
-
-        files = FileUtils.load_folder_files("not_existed_foulder", recursive=False)
-        self.assertEqual([], files)
-
-        files = FileUtils.load_folder_files(file2, recursive=False)
-        self.assertEqual([], files)
 
 
 class TestUtils(ApiServerUnittest):
@@ -145,6 +15,15 @@ class TestUtils(ApiServerUnittest):
             utils.remove_prefix(full_url, prefix),
             "/post/123"
         )
+
+    def test_set_os_environ(self):
+        self.assertNotIn("abc", os.environ)
+        variables_mapping = {
+            "abc": "123"
+        }
+        utils.set_os_environ(variables_mapping)
+        self.assertIn("abc", os.environ)
+        self.assertEqual(os.environ["abc"], "123")
 
     def test_query_json(self):
         json_content = {
@@ -220,8 +99,9 @@ class TestUtils(ApiServerUnittest):
         self.assertEqual(utils.get_uniform_comparator("count_less_than_or_equals"), "length_less_than_or_equals")
 
     def current_validators(self):
-        imported_module = utils.get_imported_module("httprunner.built_in")
-        functions_mapping = utils.filter_module(imported_module, "function")
+        from httprunner import built_in
+        module_mapping = loader.load_python_module(built_in)
+        functions_mapping = module_mapping["functions"]
 
         functions_mapping["equals"](None, None)
         functions_mapping["equals"](1, 1)
@@ -274,74 +154,6 @@ class TestUtils(ApiServerUnittest):
             updated_dict,
             {'a': 2, 'b': {'c': 33, 'd': 4, 'e': 5}, 'f': 6, 'g': 7, 'h': 123}
         )
-
-    def test_get_imported_module(self):
-        imported_module = utils.get_imported_module("os")
-        self.assertIn("walk", dir(imported_module))
-
-    def test_filter_module_functions(self):
-        imported_module = utils.get_imported_module("httprunner.utils")
-        self.assertIn("is_py3", dir(imported_module))
-
-        functions_dict = utils.filter_module(imported_module, "function")
-        self.assertIn("filter_module", functions_dict)
-        self.assertNotIn("is_py3", functions_dict)
-
-    def test_get_imported_module_from_file(self):
-        imported_module = utils.get_imported_module_from_file("tests/debugtalk.py")
-        self.assertIn("gen_md5", dir(imported_module))
-
-        functions_dict = utils.filter_module(imported_module, "function")
-        self.assertIn("gen_md5", functions_dict)
-        self.assertNotIn("urllib", functions_dict)
-
-        with self.assertRaises(exceptions.FileNotFoundError):
-            utils.get_imported_module_from_file("tests/debugtalk2.py")
-
-    def test_search_conf_function(self):
-        gen_md5 = utils.search_conf_item("tests/data/demo_binds.yml", "function", "gen_md5")
-        self.assertTrue(utils.is_function(("gen_md5", gen_md5)))
-        self.assertEqual(gen_md5("abc"), "900150983cd24fb0d6963f7d28e17f72")
-
-        gen_md5 = utils.search_conf_item("tests/data/subfolder/test.yml", "function", "gen_md5")
-        self.assertTrue(utils.is_function(("_", gen_md5)))
-        self.assertEqual(gen_md5("abc"), "900150983cd24fb0d6963f7d28e17f72")
-
-        with self.assertRaises(exceptions.FunctionNotFound):
-            utils.search_conf_item("tests/data/subfolder/test.yml", "function", "func_not_exist")
-
-        with self.assertRaises(exceptions.FunctionNotFound):
-            utils.search_conf_item("/user/local/bin", "function", "gen_md5")
-
-    def test_search_conf_variable(self):
-        SECRET_KEY = utils.search_conf_item("tests/data/demo_binds.yml", "variable", "SECRET_KEY")
-        self.assertTrue(utils.is_variable(("SECRET_KEY", SECRET_KEY)))
-        self.assertEqual(SECRET_KEY, "DebugTalk")
-
-        SECRET_KEY = utils.search_conf_item("tests/data/subfolder/test.yml", "variable", "SECRET_KEY")
-        self.assertTrue(utils.is_variable(("SECRET_KEY", SECRET_KEY)))
-        self.assertEqual(SECRET_KEY, "DebugTalk")
-
-        with self.assertRaises(exceptions.VariableNotFound):
-            utils.search_conf_item("tests/data/subfolder/test.yml", "variable", "variable_not_exist")
-
-        with self.assertRaises(exceptions.VariableNotFound):
-            utils.search_conf_item("/user/local/bin", "variable", "SECRET_KEY")
-
-    def test_is_variable(self):
-        var1 = 123
-        var2 = "abc"
-        self.assertTrue(utils.is_variable(("var1", var1)))
-        self.assertTrue(utils.is_variable(("var2", var2)))
-
-        __var = 123
-        self.assertFalse(utils.is_variable(("__var", __var)))
-
-        func = lambda x: x + 1
-        self.assertFalse(utils.is_variable(("func", func)))
-
-        self.assertFalse(utils.is_variable(("os", os)))
-        self.assertFalse(utils.is_variable(("utils", utils)))
 
     def test_handle_config_key_case(self):
         origin_dict = {
@@ -448,3 +260,46 @@ class TestUtils(ApiServerUnittest):
         self.assertTrue(os.path.isdir(os.path.join(project_path, "tests", "testcases")))
         self.assertTrue(os.path.isfile(os.path.join(project_path, "tests", "debugtalk.py")))
         shutil.rmtree(project_path)
+
+    def test_cartesian_product_one(self):
+        parameters_content_list = [
+            [
+                {"a": 1},
+                {"a": 2}
+            ]
+        ]
+        product_list = utils.gen_cartesian_product(*parameters_content_list)
+        self.assertEqual(
+            product_list,
+            [
+                {"a": 1},
+                {"a": 2}
+            ]
+        )
+
+    def test_cartesian_product_multiple(self):
+        parameters_content_list = [
+            [
+                {"a": 1},
+                {"a": 2}
+            ],
+            [
+                {"x": 111, "y": 112},
+                {"x": 121, "y": 122}
+            ]
+        ]
+        product_list = utils.gen_cartesian_product(*parameters_content_list)
+        self.assertEqual(
+            product_list,
+            [
+                {'a': 1, 'x': 111, 'y': 112},
+                {'a': 1, 'x': 121, 'y': 122},
+                {'a': 2, 'x': 111, 'y': 112},
+                {'a': 2, 'x': 121, 'y': 122}
+            ]
+        )
+
+    def test_cartesian_product_empty(self):
+        parameters_content_list = []
+        product_list = utils.gen_cartesian_product(*parameters_content_list)
+        self.assertEqual(product_list, [])
